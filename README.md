@@ -148,11 +148,8 @@ Esto construirá la app e instalará el `.apk` en un dispositivo físico o emula
 
 Este proyecto fue desarrollado como parte de una entrega académica. Para dudas o colaboración:
 
-- Nombre: María Victoria Quiroga Martinez
-- Correo: maria.quiroga@alumnos.ucn.cl
-- Universidad: Universidad Católica del Norte
+- María Victoria Quiroga Martinez
+- maria.quiroga@alumnos.ucn.cl
+- Universidad Católica del Norte
 
----
-
-## Capturas de pantalla
 
