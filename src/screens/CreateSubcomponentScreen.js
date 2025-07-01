@@ -2,43 +2,21 @@ import { API_URL } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from "axios";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { ActivityIndicator, Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function CreateSubcomponentScreen({ navigation, route }) {
   const { parentId } = route.params;
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [status, setStatus] = useState('activo');
-  const [descriptions, setDescriptions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Característica states
-  const [charName, setCharName] = useState('');
-  const [charDesc, setCharDesc] = useState('');
-  const [editingCharId, setEditingCharId] = useState(null);
-  const [showCharModal, setShowCharModal] = useState(false);
 
-  // Característica logic
-  const handleAddOrEditChar = () => {
-    if (!charName.trim() || !charDesc.trim()) {
-      Alert.alert('Completa todos los campos');
-      return;
-    }
-    if (editingCharId) {
-      setDescriptions(prev =>
-        prev.map(desc => desc._id === editingCharId ? { ...desc, name: charName, description: charDesc } : desc)
-      );
-    } else {
-      setDescriptions(prev => [...prev, { name: charName, description: charDesc }]);
-    }
-    setCharName(''); setCharDesc(''); setEditingCharId(null); setShowCharModal(false);
-  };
-  const handleEditChar = (item) => {
-    setCharName(item.name); setCharDesc(item.description); setEditingCharId(item._id); setShowCharModal(true);
-  };
-  const handleDeleteChar = (id) => setDescriptions(prev => prev.filter(d => d._id !== id));
-
+  /**
+   * Crea un nuevo subcomponente asociado al componente actual.
+   * Envía nombre, tipo, estado y características al backend.
+   * Si se guarda con éxito, vuelve a la pantalla anterior.
+   */
   const handleSave = async () => {
     if (!name.trim() || !type.trim() || !status) {
       Alert.alert('Completa todos los campos');
@@ -53,7 +31,6 @@ export default function CreateSubcomponentScreen({ navigation, route }) {
           name,
           type,
           status,
-          descriptions,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -95,62 +72,12 @@ export default function CreateSubcomponentScreen({ navigation, route }) {
           ><Text style={[styles.statusBtnText, status === 'de baja' && { color: '#fff' }]}>De baja</Text></TouchableOpacity>
         </View>
 
-        {/* Características */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Características</Text>
-          <TouchableOpacity onPress={() => { setCharName(''); setCharDesc(''); setEditingCharId(null); setShowCharModal(true); }}>
-            <Icon name="plus-circle" size={22} color="#1976d2" />
-          </TouchableOpacity>
-        </View>
-        <ScrollView style={styles.listScroll} nestedScrollEnabled>
-          {descriptions.filter(d => !d.toDelete).map((item, idx) => (
-            <View key={item._id || idx} style={styles.listRow}>
-              <Text style={styles.itemText}>{item.name}: {item.description}</Text>
-              <View style={styles.rowIcons}>
-                <TouchableOpacity onPress={() => handleEditChar(item)}><Icon name="pencil-outline" size={18} color="#1976d2" /></TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDeleteChar(item._id)} style={{ marginLeft: 8 }}><Icon name="trash-can-outline" size={18} color="#e74c3c" /></TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-
         <TouchableOpacity style={styles.actionButton} onPress={handleSave}>
           <Text style={styles.actionButtonText}>Guardar subcomponente</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
           <Text style={styles.cancelButtonText}>Cancelar</Text>
         </TouchableOpacity>
-
-        {/* Modal para características */}
-        <Modal visible={showCharModal} transparent animationType="fade" onRequestClose={() => setShowCharModal(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainerSmall}>
-              <Text style={styles.modalTitle}>{editingCharId ? 'Editar característica' : 'Agregar característica'}</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={charName}
-                onChangeText={setCharName}
-                placeholder="Nombre"
-                placeholderTextColor="#b8c3d9"
-              />
-              <TextInput
-                style={styles.modalInput}
-                value={charDesc}
-                onChangeText={setCharDesc}
-                placeholder="Descripción"
-                placeholderTextColor="#b8c3d9"
-              />
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 }}>
-                <TouchableOpacity style={styles.modalMainButton} onPress={handleAddOrEditChar}>
-                  <Text style={styles.modalMainButtonText}>{editingCharId ? 'Guardar' : 'Agregar'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowCharModal(false)}>
-                  <Text style={styles.modalCancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
 
       </View>
     </SafeAreaView>
@@ -280,7 +207,6 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   iconDeleteBtn: {
-    // Puedes agregar feedback visual aquí si quieres
   },
   emptyText: {
     textAlign: 'center',
@@ -318,7 +244,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  // --- Modal ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(10,20,40,0.14)',
@@ -333,79 +258,10 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     elevation: 8,
   },
-  modalTitle: {
-    color: '#003057',
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 18,
-    textAlign: 'center',
-  },
   modalOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(10,20,40,0.25)', // Más oscuro para que el modal destaque más
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-modalContainerSmall: {
-  width: 310,
-  backgroundColor: '#f7fbff', // Fondo más suave, distinto al blanco total
-  borderRadius: 18,
-  paddingVertical: 22,
-  paddingHorizontal: 19,
-  alignItems: 'stretch',
-  elevation: 12,
-  shadowColor: '#000',
-  shadowOpacity: 0.11,
-  shadowOffset: { width: 0, height: 7 },
-  shadowRadius: 20,
-},
-modalTitle: {
-  color: '#1976d2',
-  fontSize: 17,
-  fontWeight: 'bold',
-  marginBottom: 13,
-  textAlign: 'center',
-  letterSpacing: 0.1,
-},
-modalInput: {
-  backgroundColor: '#fff',
-  borderRadius: 8,
-  borderWidth: 1,
-  borderColor: '#c2daf7',
-  paddingVertical: 10,
-  paddingHorizontal: 11,
-  fontSize: 15,
-  marginBottom: 10,
-  color: '#003057',
-},
-modalMainButton: {
-  backgroundColor: '#1976D2',
-  borderRadius: 7,
-  paddingVertical: 10,
-  paddingHorizontal: 22,
-  alignItems: 'center',
-  marginRight: 6,
-  minWidth: 85,
-},
-modalMainButtonText: {
-  color: '#fff',
-  fontSize: 15,
-  fontWeight: 'bold',
-},
-modalCancelButton: {
-  borderRadius: 7,
-  borderWidth: 1.3,
-  borderColor: '#1976D2',
-  backgroundColor: '#fff',
-  paddingVertical: 10,
-  paddingHorizontal: 22,
-  alignItems: 'center',
-  minWidth: 85,
-},
-modalCancelButtonText: {
-  color: '#1976D2',
-  fontSize: 15,
-  fontWeight: 'bold',
-},
-
+    flex: 1,
+    backgroundColor: 'rgba(10,20,40,0.25)', 
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
