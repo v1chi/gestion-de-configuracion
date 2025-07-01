@@ -3,10 +3,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SideMenu from './SideMenu';
 
-//formatear fecha
+// Función para formatear fecha
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -15,10 +15,21 @@ function formatDate(dateStr) {
 
 export default function HistoryScreen({ navigation }) {
   const [histories, setHistories] = useState([]);
-  const [expandedRows, setExpandedRows] = useState({}); // manejar expansión por id
-  const [loading, setLoading] = useState(true); // loader
-  const [menuVisible, setMenuVisible] = useState(false); //menu lateral
+  const [expandedRows, setExpandedRows] = useState({}); 
+  const [loading, setLoading] = useState(true); 
+  const [menuVisible, setMenuVisible] = useState(false); 
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
+  /**
+   * Obtiene y ordena el historial de modificaciones desde el backend.
+   *
+   * Realiza una solicitud GET al endpoint `/histories`.
+   * Ordena los resultados por fecha descendente (más reciente primero).
+   * Almacena los datos en el estado `histories`.
+   * Muestra una alerta si ocurre un error, y deja el historial vacío.
+   * Controla el estado de carga con `loading`.
+   */
   useEffect(() => {
     const fetchHistories = async () => {
       try {
@@ -41,6 +52,17 @@ export default function HistoryScreen({ navigation }) {
     fetchHistories();
   }, []);
 
+  /**
+   * Renderiza los detalles de una entrada del historial de cambios.
+   *
+   * Muestra los campos relevantes como:
+   * - Nombre del subcomponente (si existe).
+   * - Cambios en características agrupados por tipo: editadas, agregadas, eliminadas.
+   * - Cambios en campos simples como nombre, tipo, estado.
+   *
+   * Cada bloque incluye etiquetas "Antes" y "Después".
+   * Si no hay detalles para mostrar, retorna `null`.
+   */
   const renderDetailsBlock = (entry) => {
     if (!entry.details && !entry.subcomponent_name) return null;
 
@@ -131,40 +153,60 @@ export default function HistoryScreen({ navigation }) {
     );
   };
 
+  /**
+   * Filtra las entradas del historial según el término de búsqueda ingresado.
+   */
+  const filteredHistories = histories.filter(entry =>
+    entry.component_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    entry.action.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-
-
-      {/* Header institucional con menú */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.iconWrapper}>
           <Ionicons name="menu" size={24} color="#E8EDF7" />
         </TouchableOpacity>
+
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.headerTitle}>Historial de modificaciones</Text>
         </View>
-        <View style={{ width: 36 }} />
+
+        <TouchableOpacity onPress={() => setSearchVisible(!searchVisible)} style={styles.iconWrapper}>
+          <Ionicons name="filter" size={20} color="#E8EDF7" />
+        </TouchableOpacity>
       </View>
 
-      {/* Menú lateral */}
+      {searchVisible && (
+      <View style={{ width: '100%' }}>
+        <View style={styles.filters}>
+          <TextInput
+            placeholder="Buscar por componente o acción..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchInput}
+          />
+        </View>
+      </View>
+    )}
+
       <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} navigation={navigation} />
 
-      {/* Loader */}
       {loading ? (
         <ActivityIndicator size="large" color="#1976d2" style={{ marginTop: 32 }} />
       ) : (
-        // Limita la altura de la tabla y permite scroll interno
         <View style={styles.tableWrapper}>
           <ScrollView>
             <View style={styles.table}>
-              {/* Encabezado */}
+              {/* Header de la tabla del historial */}
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderText, { flex: 2 }]}>Componente</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Acción</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.7, textAlign: 'center' }]}></Text>
               </View>
-              {/* Filas */}
-              {histories.map((entry, idx) => {
+              {/* Registros del historial */}
+              {filteredHistories.map((entry, idx) => {
                 const isExpanded = !!expandedRows[entry._id];
                 return (
                   <View key={entry._id || idx}>
@@ -208,7 +250,6 @@ export default function HistoryScreen({ navigation }) {
         </View>
       )}
 
-      {/* Botón Volver institucional */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
@@ -259,7 +300,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   tableWrapper: {
-    maxHeight: 600, // ajustar espacio tabla
+    maxHeight: 600, 
     minHeight: 160,
     marginBottom: 16,
   },
@@ -341,4 +382,27 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  filters: {
+    marginTop: 1,
+    marginBottom: 12,
+    marginHorizontal: 8,
+    backgroundColor: '#f6fafd',
+    borderRadius: 10,
+    padding: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 1,
+  },
+  searchInput: {
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    color: '#003057',
+    borderWidth: 0,
+    flex: 1,
+  },
+
+
 });
