@@ -1,7 +1,8 @@
 import { API_URL } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Picker from "react-native-picker-select";
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -9,7 +10,6 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 export default function ComponentDetailScreen({navigation, route}){
     const { componentId } = route.params;
     const [loading, setLoading] = useState(false);
-
     const [name, setName] = useState('');
     const [type, setType] = useState('');
     const [status, setStatus] = useState('');
@@ -17,81 +17,122 @@ export default function ComponentDetailScreen({navigation, route}){
     const [components, setComponents] = useState([]);
     const [showAssociateModal, setShowAssociateModal] = useState(false);
     const [showCharModal, setShowCharModal] = useState(false);
-
-    // para características
     const [descriptionName, setDescriptionName] = useState('');
     const [descriptionType, setDescriptionType] = useState('');
     const [editingDescriptionId, setEditingDescriptionId] = useState(null);
-
-    // para asociar subcomponentes existentes
     const [availableComponents, setAvailableComponents] = useState([]);
     const [selectedExistingComponent, setSelectedExistingComponent] = useState(null);
 
-    useEffect(() => {
-        const fetchComponentDetails = async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/components/${componentId}`, {
-            headers: { Authorization: `Bearer ${token}` }
-            });
-            setName(res.data.name);
-            setType(res.data.type);
-            setStatus(res.data.status);
-            setDescriptions(res.data.descriptions ?? []);
-            setComponents(res.data.components ?? []);
-        } catch (err) {
-            console.error('Error al obtener detalles del componente:', err);
-        }
-        };
-        fetchComponentDetails();
-    }, []);
+    /**
+     * Al montar la pantalla, obtiene los detalles del componente actual desde la API.
+     * Extrae y guarda en el estado el nombre, tipo, estado, descripciones y subcomponentes.
+     * Utiliza el token JWT almacenado en AsyncStorage para autenticar la solicitud.
+     */
+    useFocusEffect(
+        useCallback(() => {
+            const fetchComponentDetails = async () => {
+            try {
+                const token = await AsyncStorage.getItem('token');
+                const res = await axios.get(`${API_URL}/components/${componentId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+                });
+                setName(res.data.name);
+                setType(res.data.type);
+                setStatus(res.data.status);
+                setDescriptions(res.data.descriptions ?? []);
+                setComponents(res.data.components ?? []);
+            } catch (err) {
+                console.error('Error al obtener detalles del componente:', err);
+            }
+            };
 
+            fetchComponentDetails();
+        }, [componentId])
+    );
+
+    /**
+     * Agrega una nueva característica (descripción) al componente o edita una existente.
+     * Si se está editando, reemplaza la descripción correspondiente en la lista.
+     * Si es nueva, la agrega al final. Luego limpia el formulario y cierra el modal.
+     * Muestra alerta si los campos están incompletos.
+     */
     const handleAddOrEditChar = () => {
         if (!descriptionName || !descriptionType) {
             Alert.alert('Error', 'Faltan campos por completar');
             return;
         }
-        const nueva = { name: descriptionName, description: descriptionType };
+
+        const nueva = {
+            name: descriptionName,
+            description: descriptionType,
+        };
+
         if (editingDescriptionId) {
+            // Editar descripción existente (usa _id o tempId)
             setDescriptions(prev =>
-                prev.map(desc =>
-                    desc._id === editingDescriptionId
-                        ? { ...desc, ...nueva }
-                        : desc
-                )
+            prev.map(desc =>
+                desc._id === editingDescriptionId || desc.tempId === editingDescriptionId
+                ? { ...desc, ...nueva }
+                : desc
+            )
             );
         } else {
-            setDescriptions(prev => [...prev, { ...nueva }]);
+            // Agregar nueva con tempId único
+            const nuevaConId = {
+            ...nueva,
+            tempId: Date.now().toString(),
+            };
+            setDescriptions(prev => [...prev, nuevaConId]);
         }
+
         setDescriptionName('');
         setDescriptionType('');
         setEditingDescriptionId(null);
         setShowCharModal(false);
-    };
+        };
 
+ 
+    /**
+     * Carga en el formulario los datos de una característica existente para ser editada.
+     * Abre el modal de edición y guarda temporalmente el ID de la descripción seleccionada.
+     */
     const handleEditDescription = (desc) => {
         setDescriptionName(desc.name);
         setDescriptionType(desc.description);
-        setEditingDescriptionId(desc._id);
+        setEditingDescriptionId(desc._id || desc.tempId);
         setShowCharModal(true);
     };
 
+
+    /**
+     * Marca una descripción para su eliminación lógica, sin borrarla inmediatamente.
+     * La eliminación real se procesa al momento de guardar los cambios.
+     */
     const handleMarkDescriptionForDeletion = (descId) => {
         setDescriptions(prev =>
             prev.map(d =>
-                d._id === descId
-                    ? { ...d, toDelete: true }
-                    : d
+            d._id === descId || d.tempId === descId
+                ? { ...d, toDelete: true }
+                : d
             )
         );
     };
 
+
+    /**
+     * Marca un subcomponente para ser desvinculado del componente padre.
+     * La desvinculación efectiva se realiza al guardar los cambios.
+     */
     const handleMarkForDisassociation = (childId) => {
         setComponents(prev =>
             prev.map((c) => (c._id === childId ? { ...c, toDelete: true } : c))
         );
     };
 
+    /**
+     * Obtiene todos los componentes desde la API y filtra los que no tienen padre ni son el actual.
+     * Guarda la lista en el estado para permitir la asociación con el componente actual.
+     */
     const fetchAvailableComponents = async () => {
         try {
         const token = await AsyncStorage.getItem('token');
@@ -105,6 +146,12 @@ export default function ComponentDetailScreen({navigation, route}){
         }
     };
 
+    /**
+     * Asocia un componente existente al componente actual.
+     * Busca el componente seleccionado en la lista disponible y lo agrega a los asociados.
+     * Marca internamente que debe asociarse al guardar.
+     * Muestra alerta si no se selecciona ningún componente.
+     */
     const handleAssociateExistingComponent = () => {
         if (!selectedExistingComponent) {
             Alert.alert('Error', 'Debes seleccionar un componente');
@@ -118,6 +165,19 @@ export default function ComponentDetailScreen({navigation, route}){
         }
     };
 
+    /**
+     * Guarda los cambios realizados al componente actual.
+     *
+     * 1. Valida que los campos requeridos estén completos.
+     * 2. Actualiza el componente principal con sus nuevos datos y descripciones.
+     * 3. Crea nuevos subcomponentes agregados manualmente.
+     * 4. Cambia el estado a 'de baja' en subcomponentes existentes cuando corresponde.
+     * 5. Desasocia subcomponentes marcados para eliminación.
+     * 6. Asocia subcomponentes seleccionados desde la lista de disponibles.
+     *
+     * Utiliza el token JWT desde AsyncStorage para autenticar todas las solicitudes.
+     * Muestra alertas según el resultado de la operación.
+     */
     const handleUpdateComponent = async () => {
         if (!name.trim() || !type.trim()) {
             Alert.alert('Error', 'El nombre y el tipo no pueden estar vacíos');
@@ -190,11 +250,11 @@ export default function ComponentDetailScreen({navigation, route}){
             setLoading(false);
         }
     };
+    
 
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.card}>
-                {/* Nombre */}
                 <Text style={styles.label}>Nombre</Text>
                 <TextInput
                 style={styles.input}
@@ -204,7 +264,6 @@ export default function ComponentDetailScreen({navigation, route}){
                 placeholderTextColor="#b8c3d9"
                 />
 
-                {/* Tipo */}
                 <Text style={styles.label}>Tipo</Text>
                 <TextInput
                 style={styles.input}
@@ -214,7 +273,7 @@ export default function ComponentDetailScreen({navigation, route}){
                 placeholderTextColor="#b8c3d9"
                 />
 
-                {/* Características con botón + */}
+                {/* Características*/}
                 <View style={styles.rowTitle}>
                     <Text style={styles.sectionTitle}>Características</Text>
                     <TouchableOpacity
@@ -236,16 +295,16 @@ export default function ComponentDetailScreen({navigation, route}){
                         <Text style={styles.emptyText}>No hay características</Text>
                         ) : (
                         descriptions.filter(d => !d.toDelete).map((item, index) => (
-                            <View key={item._id || index} style={styles.listItem}>
+                            <View key={item._id ||  item.tempId} style={styles.listItem}>
                             <Text style={styles.itemText}>
                                 {item.name}: {item.description}
                             </Text>
                             <View style={styles.iconActions}>
                                 <TouchableOpacity onPress={() => handleEditDescription(item)}>
-                                <Icon name="pencil-outline" size={19} color="#1976d2" />
+                                    <Icon name="pencil-outline" size={19} color="#1976d2" />
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleMarkDescriptionForDeletion(item._id)}>
-                                <Icon name="trash-can-outline" size={19} color="#e74c3c" style={{ marginLeft: 13 }} />
+                                <TouchableOpacity onPress={() => handleMarkDescriptionForDeletion(item._id || item.tempId)}>
+                                    <Icon name="trash-can-outline" size={19} color="#e74c3c" style={{ marginLeft: 13 }} />
                                 </TouchableOpacity>
                             </View>
                             </View>
@@ -254,21 +313,21 @@ export default function ComponentDetailScreen({navigation, route}){
                     </ScrollView>
                 </View>
 
-                {/* Subcomponentes con botón + */}
+                {/* Subcomponentes*/}
                 <View style={styles.rowTitle}>
                     <Text style={styles.sectionTitle}>Subcomponentes</Text>
                     <TouchableOpacity
                         onPress={() => {
-                        Alert.alert(
-                            'Agregar subcomponente',
-                            '¿Qué quieres hacer?',
-                            [
-                            { text: 'Crear nuevo', onPress: () => navigation.navigate('CreateSubcomponent', { parentId: componentId }) },
-                            { text: 'Asociar existente', onPress: () => { fetchAvailableComponents(); setShowAssociateModal(true); } },
-                            { text: 'Cancelar', style: 'cancel' }
-                            ]
-                        );
-                        }}
+                            Alert.alert('Aviso', 'Si tienes cambios sin guardar estos se perderán al continuar ¿Deseas seguir?',
+                            [{ text: 'Cancelar', style: 'cancel' },
+                                {text: 'Continuar',
+                                    onPress: () => {
+                                    Alert.alert('Agregar subcomponente','¿Qué quieres hacer?',
+                                        [{ text: 'Crear nuevo', onPress: () => navigation.navigate('CreateSubcomponent', { parentId: componentId }) },
+                                        { text: 'Asociar existente', onPress: () => { fetchAvailableComponents(); setShowAssociateModal(true); } },
+                                        { text: 'Cancelar', style: 'cancel' }]
+                                    );}}]);
+                            }}
                         style={styles.addButton}
                     >
                         <Icon name="plus-circle-outline" size={22} color="#1976d2" />
@@ -292,7 +351,7 @@ export default function ComponentDetailScreen({navigation, route}){
                     </ScrollView>
                 </View>
 
-                {/* Cambiar estado (con colores institucionales) */}
+                {/* Cambiar estado */}
                 <TouchableOpacity
                     style={[
                         styles.statusButton,
@@ -354,7 +413,6 @@ export default function ComponentDetailScreen({navigation, route}){
                     </Text>
                 </TouchableOpacity>
 
-                {/* Guardar */}
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={handleUpdateComponent}
@@ -363,7 +421,6 @@ export default function ComponentDetailScreen({navigation, route}){
                     {loading ? (<ActivityIndicator color="#FFF" />) : (<Text style={styles.actionButtonText}>Guardar cambios</Text>)}
                 </TouchableOpacity>
 
-                {/* Cancelar */}
                 <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
                     <Text style={styles.cancelButtonText}>Volver</Text>
                 </TouchableOpacity>
@@ -428,7 +485,6 @@ export default function ComponentDetailScreen({navigation, route}){
             </View>
         </SafeAreaView>
     );
-
 }
 
 const styles = StyleSheet.create({
@@ -436,7 +492,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#003057',
     alignItems: 'center',
-    justifyContent: 'center', // Centra verticalmente el card
+    justifyContent: 'center', 
   },
   card: {
     width: '92%',
@@ -449,7 +505,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowRadius: 16,
     elevation: 8,
-    marginTop: 54, // Para evitar estar pegado arriba
+    marginTop: 54,
     marginBottom: 38,
   },
   label: {
@@ -566,7 +622,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  // MODAL STYLES
   modalBg: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.22)',
@@ -628,16 +683,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  //iconos
   iconActions: {
   flexDirection: 'row',
   alignItems: 'center',
   justifyContent: 'flex-end',
   marginLeft: 8,
-  // Puedes agregar un minWidth si quieres que siempre tengan espacio
 },
 icon: {
-  marginLeft: 16, // separa bien ambos íconos
+  marginLeft: 16, 
 },
   
 });

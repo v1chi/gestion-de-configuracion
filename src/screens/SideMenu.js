@@ -8,12 +8,11 @@ export default function SideMenu({ visible, onClose, navigation }) {
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
         <View style={styles.popup}>
-          {/* Botón de cerrar */}
+
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Ionicons name="close" size={22} color="#1976d2" />
           </TouchableOpacity>
 
-          {/* Opciones del menú */}
           <MenuOption
             icon="home-outline"
             text="Menú Principal"
