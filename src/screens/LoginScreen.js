@@ -73,7 +73,6 @@ export default function LoginScreen({ navigation }) {
         email = userInfo.data.user.email;
       }
       if (!email){
-        console.warn('No se obtuvo el correo del usuario.');
         return;
       } 
 

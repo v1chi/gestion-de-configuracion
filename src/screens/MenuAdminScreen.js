@@ -60,7 +60,7 @@ export default function MenuAdminScreen({ navigation }) {
         setComponentList(response.data);
       }
     } catch (error) {
-      console.error('Error buscando componentes:', error);
+      //console.error('Error buscando componentes:', error);
     } finally {
       setLoading(false);
     }
