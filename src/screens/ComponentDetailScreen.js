@@ -304,7 +304,7 @@ export default function ComponentDetailScreen({navigation, route}){
                 </View>
 
                 <View style={styles.listBox}>
-                    <ScrollView style={{ maxHeight: 130 }}>
+                    <ScrollView style={{ maxHeight: 100 }} >
                         {descriptions.filter(d => !d.toDelete).length === 0 ? (
                         <Text style={styles.emptyText}>No hay características</Text>
                         ) : (
@@ -349,7 +349,7 @@ export default function ComponentDetailScreen({navigation, route}){
                 </View>
 
                 <View style={styles.listBox}>
-                    <ScrollView style={{ maxHeight: 130 }}>
+                    <ScrollView style={{ maxHeight: 100 }}>
                         {components.filter(c => !c.toDelete).length === 0 ? (
                         <Text style={styles.emptyText}>No hay subcomponentes asociados</Text>
                         ) : (

@@ -20,8 +20,13 @@ export default function MenuAdminScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   /**
-   * Al montar la pantalla, obtiene la lista completa de componentes desde el backend
-   * usando `fetchAllComponents()` y la guarda en `componentList`.
+   * Al enfocarse  obtiene todos los componentes desde el backend
+   * y los guarda en el estado local `componentList`
+   * 
+   * Esto asegura que si se crea, edita o elimina un componente en otra pantalla, 
+   * al volver aquí la lista se actualice automáticamente
+   * 
+   * También limpia el campo de búsqueda (`searchQuery`) 
    */
   useFocusEffect(
     useCallback(() => {

@@ -15,8 +15,12 @@ export default function ManageComponentsScreen({ navigation }) {
   const [showFilters, setShowFilters] = useState(false);
 
   /**
-   * Al cargar la pantalla, obtiene todos los componentes desde el backend.
-   * Maneja los estados de carga y guarda los datos en `componentsData`.
+   * Al enfocarse obtiene la lista completa de componentes desde el backend
+   *
+   * Actualiza el estado `componentsData` con los datos obtenidos
+   * Si ocurre un error, muestra una alerta y limpia la lista
+   *
+   * También limpia el campo de búsqueda (`search`) para evitar que persistan filtros anteriores
    */
   useFocusEffect(
     useCallback(() => {
