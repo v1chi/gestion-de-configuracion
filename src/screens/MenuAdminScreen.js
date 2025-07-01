@@ -1,30 +1,44 @@
 import { API_URL } from '@env';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FlatList, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SideMenu from './SideMenu';
 
 export default function MenuAdminScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
-  const [componentsData, setComponentsData] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-
   const [selectedComponent, setSelectedComponent] = useState(null);
   const [showComponentModal, setShowComponentModal] = useState(false);
-
   const [componentHistory, setComponentHistory] = useState([]);
-
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
   const [historyData, setHistoryData] = useState([]);
-
   const [searchQuery, setSearchQuery] = useState('');
   const [componentList, setComponentList] = useState([]); // reemplaza si ya existía
   const [loading, setLoading] = useState(false);
 
-  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  /**
+   * Al montar la pantalla, obtiene la lista completa de componentes desde el backend
+   * usando `fetchAllComponents()` y la guarda en `componentList`.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const fetchInitialData = async () => {
+        const all = await fetchAllComponents();
+        setComponentList(all);
+        setSearchQuery(''); // opcional: limpiar el buscador al volver
+      };
+      fetchInitialData();
+    }, [])
+  );
   
+  /**
+   * Maneja la búsqueda de componentes.
+   * Si el campo de búsqueda está vacío, carga todos los componentes.
+   * Si hay texto, hace una búsqueda parcial con la API (`/components/search?q=...`).
+   */
   const handleSearch = async (text) => {
     try {
       setSearchQuery(text);
@@ -47,12 +61,20 @@ export default function MenuAdminScreen({ navigation }) {
     }
   };
 
+  /**
+   * Cambia la vista al subcomponente especificado por su ID.
+   * Guarda el componente actual en un historial para poder volver atrás.
+   */
   const handleGoToSubcomponent = async (subId) => {
     const sub = await fetchComponentById(subId);
     setComponentHistory(prev => [...prev, selectedComponent]);
     setSelectedComponent(sub);
   };
 
+  /**
+   * Permite volver hacia atrás en la navegación entre subcomponentes en el modal.
+   * Si no hay historial, cierra el modal.
+   */
   const handleGoBackInModal = () => {
     if (componentHistory.length > 0) {
       const previous = componentHistory[componentHistory.length - 1];
@@ -63,6 +85,10 @@ export default function MenuAdminScreen({ navigation }) {
     }
   };
 
+  /**
+   * Solicita al backend los datos de un componente específico por su ID.
+   * Devuelve el objeto componente completo.
+   */
   const fetchComponentById = async (id) => {
     const token = await AsyncStorage.getItem('token');
     const response = await axios.get(`${API_URL}/components/${id}`, {
@@ -71,6 +97,10 @@ export default function MenuAdminScreen({ navigation }) {
     return response.data;
   };
 
+  /**
+   * Solicita al backend el historial de cambios asociados a un componente específico.
+   * Si hay error, retorna un arreglo vacío.
+   */
   const fetchHistoryByComponent = async (id) => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -85,14 +115,10 @@ export default function MenuAdminScreen({ navigation }) {
     }
   };
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      const all = await fetchAllComponents();
-      setComponentList(all);
-    };
-    fetchInitialData();
-  }, []);
-
+  /**
+  * Solicita al backend todos los componentes registrados.
+  * Si hay error, retorna un arreglo vacío.
+  */
   const fetchAllComponents = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -106,13 +132,20 @@ export default function MenuAdminScreen({ navigation }) {
     }
   };
 
+  /**
+   * Capitaliza la primera letra de un string.
+   */
   const capitalize = (s) => s && s[0].toUpperCase() + s.slice(1);
 
+  /**
+   * Renderiza cada fila de la tabla de componentes.
+   * Incluye el nombre, tipo, estado y botones de acciones (ver detalle, ver historial).
+   */
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
-      <Text style={[styles.itemTextNombre, { flex: 2 }]}>{item.name}</Text>
-      <Text style={[styles.itemText, { flex: 1.3 }]}>{item.type}</Text>
-      <Text style={[styles.itemText, { flex: 1.1 }]}>{capitalize(item.status)}</Text>
+      <Text style={[styles.itemTextNombre, { flex: 1.5 }]}>{item.name}</Text>
+      <Text style={[styles.itemText, { flex: 1 }]}>{item.type}</Text>
+      <Text style={[styles.itemText, { flex: 1 }]}>{capitalize(item.status)}</Text>
       <View style={[styles.actionsCell, { flex: 1 }]}>
         <TouchableOpacity
           onPress={async () => {
@@ -140,11 +173,10 @@ export default function MenuAdminScreen({ navigation }) {
     </View>
   );
 
-
   return (
     <SafeAreaView style={styles.container}>
       
-      {/* Header */}
+      {/* Encabezado de la pantalla con botón de menú, título y botón para mostrar/ocultar filtros */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.iconWrapper}>
           <Ionicons name="menu" size={25} color="#fff" />
@@ -158,15 +190,15 @@ export default function MenuAdminScreen({ navigation }) {
       </View>
 
    
-      {/* Tabla Header */}
+      {/* Encabezado de la tabla: muestra los títulos de las columnas (Nombre, Tipo, Estado, Acciones) */}
       <View style={styles.tableHeader}>
-        <Text style={[styles.tableHeaderText, { flex: 2 }]}>Nombre</Text>
-        <Text style={[styles.tableHeaderText, { flex: 1.3 }]}>Tipo</Text>
-        <Text style={[styles.tableHeaderText, { flex: 1.1 }]}>Estado</Text>
+        <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Nombre</Text>
+        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Tipo</Text>
+        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Estado</Text>
         <Text style={[styles.tableHeaderText, { flex: 1 }]}>Acciones</Text>
       </View>
 
-
+      {/* Filtros de búsqueda: solo se muestran cuando showFilters es verdadero */}
       {showFilters && (
         <View style={styles.filters}>
           <Ionicons name="search" size={19} color="#b7bfc7" style={{ marginRight: 7 }} />
@@ -183,35 +215,42 @@ export default function MenuAdminScreen({ navigation }) {
         </View>
       )}
 
-      {/* Lista */}
+      {/* Lista de componentes. renderItem define cómo se ve cada fila */}
       <FlatList
         data={componentList}
         renderItem={renderItem}
         keyExtractor={(item) => item._id}
       />
 
+      {/* Mensaje de "no se encontraron componentes" cuando la lista está vacía */}
       {!loading && componentList.length === 0 && (
         <Text style={{ color: '#bbb', textAlign: 'center', marginTop: 36, fontSize: 16 }}>
           No se encontraron componentes.
         </Text>
       )}
 
+      {/* Menú lateral con navegación. Se abre desde el botón de menú en el header */}
       <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} navigation={navigation} />
 
-      {/* Subcomponentes */}
+      {/* Modal para ver los detalles de un subcomponente seleccionado */}
       <Modal visible={showComponentModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
+            {/* Verificar que haya un componente seleccionado antes de renderizar los detalles */}
             {selectedComponent && (
               <>
+                {/* Título del modal: nombre del componente */}
                 <Text style={styles.modalTitle}>{selectedComponent.name}</Text>
+                {/* Tipo del componente */}
                 <Text style={styles.modalLabel}>Tipo:</Text>
                 <Text style={styles.modalText}>{selectedComponent.type}</Text>
+                {/* Estado del componente */}
                 <Text style={styles.modalLabel}>Estado:</Text>
                 <Text style={styles.modalText}>
                   {selectedComponent.status ? selectedComponent.status.charAt(0).toUpperCase() + selectedComponent.status.slice(1) : ''}
                 </Text>
 
+                {/* Lista de características (descriptions) del componente */}
                 <Text style={styles.modalLabel}>Características:</Text>
                 {selectedComponent.descriptions?.map((desc, index) => (
                   <Text key={index} style={styles.modalText}>
@@ -219,6 +258,7 @@ export default function MenuAdminScreen({ navigation }) {
                   </Text>
                 ))}
 
+                {/* Lista de subcomponentes con opción para ver sus detalles */}
                 <Text style={styles.modalLabel}>Subcomponentes:</Text>
                   {selectedComponent.components?.map((subComp) => (
                     <TouchableOpacity
@@ -231,6 +271,7 @@ export default function MenuAdminScreen({ navigation }) {
                     </TouchableOpacity>
                 ))}
 
+                {/* Botón para volver al componente anterior en el historial del modal */}
                 <TouchableOpacity style={styles.modalBackButton} onPress={handleGoBackInModal}>
                   <Text style={styles.modalBackText}>Volver</Text>
                 </TouchableOpacity>
@@ -240,13 +281,15 @@ export default function MenuAdminScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Historial de modificaciones*/}
+      {/* Modal para mostrar el historial de modificaciones de un componente */}
       <Modal visible={historyModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Historial de cambios</Text>
             <ScrollView style={{ marginTop: 12 }}>
               {historyData.map((entry, index) => {
+
+                //Traducciones legibles para las acciones registradas en el historial
                 const actionTranslations = {
                   'name edited': 'Se cambió el nombre',
                   'type edited': 'Se cambió el tipo',
@@ -259,6 +302,7 @@ export default function MenuAdminScreen({ navigation }) {
                   'Eliminar componente': 'Eliminar componente',
                 };
 
+                //Traducciones legibles para los nombres de los campos modificados
                 const fieldNames = {
                   name: 'Nombre',
                   type: 'Tipo',
@@ -267,13 +311,13 @@ export default function MenuAdminScreen({ navigation }) {
                   status: 'Estado',
                   components: 'Componentes asociados',
                 };
-
                 const translatedAction = actionTranslations[entry.action] || entry.action;
 
                 return (
                   <View key={index} style={styles.modalHistoryBlock}>
                     <Text style={styles.modalLabel}>Acción:</Text>
                     <Text style={styles.modalText}>{translatedAction}</Text>
+
                     {entry.subcomponent_name && entry.action?.includes('subcomponent') && (
                       <>
                         <Text style={styles.modalLabel}>Subcomponente:</Text>
@@ -286,55 +330,60 @@ export default function MenuAdminScreen({ navigation }) {
                         <Text style={styles.modalLabel}>Detalles:</Text>
                         {Object.entries(entry.details).map(([key, change], i) => {
                           const label = fieldNames[key] || key;
-                          // Si el cambio es en descripciones (características)
+
+                          {/* Si se modificaron características (descriptions) pueden haber sido editadas, agregadas o eliminadas */}
                           if (key === "descriptions" && typeof change === "object") {
                             return (
                               <View key={i} style={{ marginBottom: 8 }}>
                                 <Text style={styles.modalText}>• {label}:</Text>
-                                {/* Editadas */}
+
+                                {/* Sección para características editadas  */}
                                 {Array.isArray(change.edited) && change.edited.length > 0 && (
-                                  <View style={{ marginLeft: 10, marginTop: 2 }}>
+                                  <View style={{ marginLeft: 10, marginTop: 4 }}>
                                     <Text style={[styles.modalText, { fontWeight: "bold" }]}>Editadas:</Text>
                                     {change.edited.map((desc, j) => (
-                                      <View key={`edit-${desc._id || j}`} style={{ marginLeft: 8 }}>
+                                      <View key={`edit-${j}`} style={{ marginLeft: 10, marginTop: 6 }}>
+                                        <Text style={[styles.modalText, { fontWeight: 'bold' }]}>Antes</Text>
                                         <Text style={styles.modalText}>
-                                          Nombre: <Text style={{ color: '#E74C3C' }}>{desc.before.name}</Text> → <Text style={{ color: '#27ae60' }}>{desc.after.name}</Text>
+                                          <Text style={{ fontWeight: 'bold' }}>Nombre:</Text> {desc.before.name}
                                         </Text>
                                         <Text style={styles.modalText}>
-                                          Descripción: <Text style={{ color: '#E74C3C' }}>{desc.before.description}</Text> → <Text style={{ color: '#27ae60' }}>{desc.after.description}</Text>
+                                          <Text style={{ fontWeight: 'bold' }}>Descripción:</Text> {desc.before.description}
+                                        </Text>
+
+                                        <Text style={[styles.modalText, { fontWeight: 'bold', marginTop: 4 }]}>Después</Text>
+                                        <Text style={styles.modalText}>
+                                          <Text style={{ fontWeight: 'bold' }}>Nombre:</Text> {desc.after.name}
+                                        </Text>
+                                        <Text style={styles.modalText}>
+                                          <Text style={{ fontWeight: 'bold' }}>Descripción:</Text> {desc.after.description}
                                         </Text>
                                       </View>
                                     ))}
                                   </View>
                                 )}
-                                {/* Agregadas */}
+
+                                {/* Sección para características agregadas */}
                                 {Array.isArray(change.added) && change.added.length > 0 && (
-                                  <View style={{ marginLeft: 10, marginTop: 2 }}>
+                                  <View style={{ marginLeft: 10, marginTop: 4 }}>
                                     <Text style={[styles.modalText, { fontWeight: "bold" }]}>Agregadas:</Text>
                                     {change.added.map((desc, j) => (
-                                      <View key={`add-${desc._id || j}`} style={{ marginLeft: 8 }}>
-                                        <Text style={styles.modalText}>
-                                          Nombre: <Text style={{ color: '#27ae60' }}>{desc.name}</Text>
-                                        </Text>
-                                        <Text style={styles.modalText}>
-                                          Descripción: <Text style={{ color: '#27ae60' }}>{desc.description}</Text>
-                                        </Text>
+                                      <View key={`add-${j}`} style={{ marginLeft: 10, marginTop: 2 }}>
+                                        <Text style={styles.modalText}><Text style={{ fontWeight: 'bold' }}>Nombre:</Text> {desc.name}</Text>
+                                        <Text style={styles.modalText}><Text style={{ fontWeight: 'bold' }}>Descripción:</Text> {desc.description}</Text>
                                       </View>
                                     ))}
                                   </View>
                                 )}
-                                {/* Eliminadas */}
+
+                                {/* Sección para características eliminadas */}
                                 {Array.isArray(change.deleted) && change.deleted.length > 0 && (
-                                  <View style={{ marginLeft: 10, marginTop: 2 }}>
+                                  <View style={{ marginLeft: 10, marginTop: 4 }}>
                                     <Text style={[styles.modalText, { fontWeight: "bold" }]}>Eliminadas:</Text>
                                     {change.deleted.map((desc, j) => (
-                                      <View key={`del-${desc._id || j}`} style={{ marginLeft: 8 }}>
-                                        <Text style={styles.modalText}>
-                                          Nombre: <Text style={{ color: '#E74C3C' }}>{desc.name}</Text>
-                                        </Text>
-                                        <Text style={styles.modalText}>
-                                          Descripción: <Text style={{ color: '#E74C3C' }}>{desc.description}</Text>
-                                        </Text>
+                                      <View key={`del-${j}`} style={{ marginLeft: 10, marginTop: 2 }}>
+                                        <Text style={styles.modalText}><Text style={{ fontWeight: 'bold' }}>Nombre:</Text> {desc.name}</Text>
+                                        <Text style={styles.modalText}><Text style={{ fontWeight: 'bold' }}>Descripción:</Text> {desc.description}</Text>
                                       </View>
                                     ))}
                                   </View>
@@ -342,7 +391,8 @@ export default function MenuAdminScreen({ navigation }) {
                               </View>
                             );
                           } else {
-                            // Otros campos (name, type, status, etc)
+                            
+                            {/* Si el cambio corresponde a otros campos simples (nombre, tipo, estado, etc) */}
                             return (
                               <View key={i} style={{ marginBottom: 8 }}>
                                 <Text style={styles.modalText}>• {label}:</Text>
@@ -354,6 +404,7 @@ export default function MenuAdminScreen({ navigation }) {
                         })}
                       </>
                     ) : (
+                      // Si los detalles vienen como string plano en vez de objeto 
                       entry.details && typeof entry.details === 'string' && (
                         <>
                           <Text style={styles.modalLabel}>Detalles:</Text>
@@ -365,14 +416,14 @@ export default function MenuAdminScreen({ navigation }) {
                 );
               })}
             </ScrollView>
+
+            {/* Botón para cerrar el modal */}
             <TouchableOpacity onPress={() => setHistoryModalVisible(false)} style={styles.modalBackButton}>
               <Text style={styles.modalBackText}>Cerrar</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-
-
     </SafeAreaView>
   );
 }
@@ -430,9 +481,9 @@ const styles = StyleSheet.create({
   searchInput: {
     backgroundColor: 'transparent',
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 10,
-    fontSize: 16,
+    fontSize: 14,
     color: '#003057',
     borderWidth: 0,
     flex: 1,
@@ -451,7 +502,7 @@ const styles = StyleSheet.create({
   tableHeaderText: {
     color: '#1976d2',
     fontWeight: 'bold',
-    fontSize: 15,         // Tamaño coherente con los datos
+    fontSize: 15,      
     flexWrap: 'wrap',
     textAlign: 'center',
   },
@@ -460,8 +511,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingVertical: 6,   // ↓ antes 8
-    paddingHorizontal: 8, // ↓ antes 10
+    paddingVertical: 6,  
+    paddingHorizontal: 8, 
     borderRadius: 12,
     marginBottom: 9,
     borderWidth: 1,
@@ -471,12 +522,12 @@ const styles = StyleSheet.create({
   },
 
   itemTextNombre: {
-    flex: 1.3,             // Proporción con el resto
+    flex: 1.3,             
     color: '#003057',
     fontWeight: '600',
     fontSize: 14,
-    textAlign: 'center',   // Centrado ahora sí
-    paddingLeft: 0,        // O máximo 2
+    textAlign: 'center', 
+    paddingLeft: 0,        
   },
   itemText: {
     flex: 1.1,

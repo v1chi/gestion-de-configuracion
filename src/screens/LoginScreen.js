@@ -10,6 +10,7 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Configurar Google Sign-In al cargar la pantalla
   useEffect(() => {
     GoogleSignin.configure({
       webClientId: '466631932190-5kiqs5kpcgk605oa5qvqgvivqi3ph1bd.apps.googleusercontent.com',
@@ -18,80 +19,83 @@ export default function LoginScreen({ navigation }) {
     });
   }, []);
 
+  /**
+   * Inicia sesión usando correo y contraseña.
+   * Guarda el token y datos del usuario en AsyncStorage,
+   * y redirige según su rol.
+   */
   const handleLogin = async () => {
+
     if (!email || !password) {
       Alert.alert('Faltan campos', 'Debe ingresar correo y contraseña.');
       return;
     }
     setLoading(true);
+
     try {
       const response = await axios.post(`${API_URL}/api/v1/auth/signin`, {
         email,
         password
       });
-
       const { access_token, id, role } = response.data;
-
+      if (!role) {
+        Alert.alert('Error', 'No se pudo determinar el rol del usuario.');
+        return;
+      }
       await AsyncStorage.setItem('token', access_token);
       await AsyncStorage.setItem('userId', id);
       await AsyncStorage.setItem('userRole', role);
-
-      Alert.alert('Bienvenido', 'Inicio de sesión exitoso');
       navigation.navigate(role === 'administrador' ? 'MenuAdmin' : 'MenuUser');
+
     } catch (error) {
-      console.error('Login error:', error);
       Alert.alert('Error', 'Correo o contraseña incorrectos');
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Inicia sesión con Google.
+   * Si el correo existe en la plataforma, guarda el token y redirige según el rol
+   * Si el correo no existe aún, lo trata como usuario normal y redirige a la vista de usuario.
+   */
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      // Opcional: cerrar sesión previa por si el usuario cambió de cuenta
-      await GoogleSignin.signOut();
-      // Inicia sesión y obtiene información del usuario
+      await GoogleSignin.signOut(); // limpiar sesión anterior
       const userInfo = await GoogleSignin.signIn();
 
-      // Log para debug, formato curiosito
-      console.log("userInfo:", userInfo);
-
-      // Extracción del correo según la estructura real del objeto
       let email = null;
       if (userInfo && userInfo.user && userInfo.user.email) {
         email = userInfo.user.email;
       } else if (userInfo.data && userInfo.data.user && userInfo.data.user.email) {
-        // (Por si acaso, otros SDKs podrían devolver 'data.user')
         email = userInfo.data.user.email;
       }
+      if (!email){
+        console.warn('No se obtuvo el correo del usuario.');
+        return;
+      } 
 
-      if (!email) {
-        throw new Error('No se obtuvo el correo de Google. Revisa la configuración o inténtalo de nuevo.');
-      }
-
-      // Ahora consulta tu backend
       const response = await axios.get(`${API_URL}/api/v1/auth/email/${email}`);
       const { access_token, id, role } = response.data;
-      console.log(role);
+
+      if (!role) {
+        Alert.alert('Error', 'No se pudo determinar el rol del usuario.');
+        return;
+      }
 
       await AsyncStorage.setItem('token', access_token);
       await AsyncStorage.setItem('userId', id);
       await AsyncStorage.setItem('userRole', role);
-      
-
-      Alert.alert('Bienvenido', `Inicio de sesión con Google exitoso`);
       navigation.navigate(role === 'administrador' ? 'MenuAdmin' : 'MenuUser');
+
     } catch (error) {
-      console.error('Google Sign-In error:', error);
-      Alert.alert('Error', error.message || 'No se pudo iniciar sesión con Google. Puede que el correo no exista en la plataforma.');
+      Alert.alert('Error', error.message || 'No se pudo iniciar sesión con Google.');
     } finally {
       setLoading(false);
     }
   };
-
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -154,7 +158,6 @@ export default function LoginScreen({ navigation }) {
       </View>
     </SafeAreaView>
   );
-
 }
 
 const styles = StyleSheet.create({
