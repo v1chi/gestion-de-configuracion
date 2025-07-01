@@ -1,19 +1,10 @@
 import { API_URL } from '@env';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import SideMenu from './SideMenu';
 
 export default function ManageComponentsScreen({ navigation }) {
@@ -23,31 +14,45 @@ export default function ManageComponentsScreen({ navigation }) {
   const [search, setSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    const fetchComponents = async () => {
-      try {
-        setLoading(true);
-        const token = await AsyncStorage.getItem('token');
-        const response = await axios.get(`${API_URL}/components`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setComponentsData(response.data);
-      } catch (err) {
-        Alert.alert('Error', 'No se pudo obtener los componentes');
-        setComponentsData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchComponents();
-  }, []);
+  /**
+   * Al cargar la pantalla, obtiene todos los componentes desde el backend.
+   * Maneja los estados de carga y guarda los datos en `componentsData`.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const fetchComponents = async () => {
+        try {
+          setLoading(true);
+          const token = await AsyncStorage.getItem('token');
+          const response = await axios.get(`${API_URL}/components`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          setComponentsData(response.data);
+        } catch (err) {
+          Alert.alert('Error', 'No se pudo obtener los componentes');
+          setComponentsData([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      setSearch('');
+      fetchComponents();
+    }, [])
+  );
 
+  /**
+   * Filtra los componentes por nombre o tipo según el texto ingresado en `search`.
+   */
   const filteredData = componentsData.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.type.toLowerCase().includes(search.toLowerCase())
   );
 
+  /**
+   * Muestra cada componente con su nombre, tipo y estado.
+   * Incluye un botón para ir a la pantalla de detalle del componente.
+   */
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
       <View style={{ flex: 3 }}>
@@ -56,21 +61,63 @@ export default function ManageComponentsScreen({ navigation }) {
           {item.type} | {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
         </Text>
       </View>
-      <TouchableOpacity
-        style={styles.manageButton}
-        onPress={() => navigation.navigate('ComponentDetail', { componentId: item._id })}
-        activeOpacity={0.75}
-      >
-        <Text style={styles.manageButtonText}>Gestionar</Text>
-      </TouchableOpacity>
+      
+      <View style={{ flexDirection: 'row' }}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ComponentDetail', { componentId: item._id })}
+          style={{ marginHorizontal: 4 }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="settings-outline" size={20} color="#1976d2" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => handleDeleteComponent(item._id)}
+          style={{ marginHorizontal: 4 }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="trash-outline" size={20} color="#d32f2f" />
+        </TouchableOpacity>
+      </View>
+
     </View>
   );
 
+  const handleDeleteComponent = async (componentId) => {
+    try {
+      Alert.alert(
+        'Confirmar eliminación',
+        '¿Estás seguro de que quieres eliminar este componente?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: async () => {
+              const token = await AsyncStorage.getItem('token');
+              await axios.delete(`${API_URL}/components/${componentId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              // Actualiza la lista después de eliminar
+              const response = await axios.get(`${API_URL}/components`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              setComponentsData(response.data);
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error eliminando componente:', error);
+      Alert.alert('Error', 'No se pudo eliminar el componente');
+    }
+  };
+
+
   return (
     <SafeAreaView style={styles.container}>
-
-      {/* Header institucional con menú */}
       <View style={styles.header}>
+
         <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.iconWrapper}>
           <Ionicons name="menu" size={24} color="#E8EDF7" />
         </TouchableOpacity>
@@ -86,9 +133,8 @@ export default function ManageComponentsScreen({ navigation }) {
       </View>
       <SideMenu visible={menuVisible} onClose={() => setMenuVisible(false)} navigation={navigation} />
 
-      {/* Filtro de búsqueda */}
       {showFilters && (
-        <View style={styles.searchContainer}>
+        <View style={styles.filters}>
           <Ionicons name="search-outline" size={18} color="#1976d2" style={{ marginRight: 6 }} />
           <TextInput
             style={styles.searchInput}
@@ -100,7 +146,7 @@ export default function ManageComponentsScreen({ navigation }) {
         </View>
       )}
 
-      {/* Lista */}
+      {/* Lista de componentes*/}
       {loading ? (
         <ActivityIndicator size="large" color="#1976d2" style={{ marginTop: 32 }} />
       ) : (
@@ -117,7 +163,6 @@ export default function ManageComponentsScreen({ navigation }) {
         />
       )}
 
-      {/* Botón Volver */}
       <TouchableOpacity
         style={styles.cancelButton}
         onPress={() => navigation.navigate('MenuAdmin')}
@@ -126,7 +171,6 @@ export default function ManageComponentsScreen({ navigation }) {
       </TouchableOpacity>
     </SafeAreaView>
   );
-
 }
 
 const styles = StyleSheet.create({
@@ -168,18 +212,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     marginHorizontal: 2,
   },
-  searchContainer: {
+  filters: {
+    marginBottom: 7,
+    backgroundColor: '#f6fafd',
+    borderRadius: 15,
+    padding: 9,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eaf1fa',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    minWidth: 200,
-    maxWidth: 300,
-    marginTop: 4,
+    elevation: 2,
+    marginTop: 3,
   },
   searchInput: {
     flex: 1,
