@@ -24,9 +24,14 @@ export default function ComponentDetailScreen({navigation, route}){
     const [selectedExistingComponent, setSelectedExistingComponent] = useState(null);
 
     /**
-     * Al montar la pantalla, obtiene los detalles del componente actual desde la API.
-     * Extrae y guarda en el estado el nombre, tipo, estado, descripciones y subcomponentes.
-     * Utiliza el token JWT almacenado en AsyncStorage para autenticar la solicitud.
+     * useFocusEffect que se ejecuta cada vez que la pantalla obtiene foco.
+     *
+     * Esta función obtiene los detalles del componente actual desde el backend
+     * usando el ID recibido como `componentId`. 
+     *
+     * - Recupera el token JWT desde AsyncStorage para autenticación.
+     * - Realiza una petición GET al endpoint `/components/:id` para obtener los datos del componente.
+     * - Actualiza el estado local con los valores obtenidos
      */
     useFocusEffect(
         useCallback(() => {
@@ -39,7 +44,7 @@ export default function ComponentDetailScreen({navigation, route}){
                 setName(res.data.name);
                 setType(res.data.type);
                 setStatus(res.data.status);
-                setDescriptions(res.data.descriptions ?? []);
+                setDescriptions(Array.isArray(res.data.descriptions) ? res.data.descriptions : []);
                 setComponents(res.data.components ?? []);
             } catch (err) {
                 console.error('Error al obtener detalles del componente:', err);
@@ -186,21 +191,22 @@ export default function ComponentDetailScreen({navigation, route}){
         setLoading(true);
         try {
             const token = await AsyncStorage.getItem('token');
-            // 1. Actualizar componente principal
+            // Actualizar componente principal
             await axios.put(`${API_URL}/components/${componentId}`, {
                 name,
                 type,
                 status,
                 descriptions: descriptions
-                    .filter(d => !d.toDelete)
-                    .map(d => ({
-                        ...(d._id ? { _id: d._id } : {}),
-                        name: d.name,
-                        description: d.description,
-                    })),}, {
+                .filter(d => typeof d === 'object' && !d.toDelete && d.name && d.description)
+                .map(d => ({
+                    ...(d._id ? { _id: d._id } : {}),
+                    name: d.name,
+                    description: d.description,
+                })),
+                }, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-            // 2. Crear subcomponentes nuevos
+            // Crear subcomponentes nuevos
             for (const sub of components.filter(c => c.isNew)) {
                 await axios.post(
                     `${API_URL}/components/${componentId}/components`,
@@ -213,7 +219,7 @@ export default function ComponentDetailScreen({navigation, route}){
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
             }
-            // 2b. Actualizar estado de subcomponentes existentes (de activo a de baja)
+            // Actualizar estado de subcomponentes existentes (de activo a de baja)
             for (const sub of components.filter(c => !c.isNew && !c.toDelete && c.status === 'de baja')) {
                 await axios.put(
                     `${API_URL}/components/${sub._id}`,
@@ -221,12 +227,20 @@ export default function ComponentDetailScreen({navigation, route}){
                     name: sub.name,
                     type: sub.type,
                     status: 'de baja',
-                    descriptions: sub.descriptions || [],
+                    descriptions: Array.isArray(sub.descriptions)
+                        ? sub.descriptions
+                            .filter(d => typeof d === 'object' && d.name && d.description)
+                            .map(d => ({
+                                ...(d._id ? { _id: d._id } : {}),
+                                name: d.name,
+                                description: d.description,
+                            }))
+                        : [],
                     },
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
             }
-            // 3. Desasociar subcomponentes marcados
+            // Desasociar subcomponentes marcados
             for (const sub of components.filter(c => c.toDelete && c._id)) {
                 await axios.post(
                     `${API_URL}/components/${componentId}/disassociate/${sub._id}`,
@@ -234,7 +248,7 @@ export default function ComponentDetailScreen({navigation, route}){
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
             }
-            // 4. Asociar subcomponentes seleccionados existentes
+            // Asociar subcomponentes seleccionados existentes
             for (const sub of components.filter(c => c.toAssociate && c._id)) {
                 await axios.post(
                     `${API_URL}/components/${componentId}/associate/${sub._id}`,
@@ -380,7 +394,7 @@ export default function ComponentDetailScreen({navigation, route}){
                             if (hijosConHijos.length > 0) {
                             Alert.alert(
                                 'No se puede dar de baja',
-                                `Los siguientes subcomponentes tienen hijos y no pueden darse de baja automáticamente:\n- ${hijosConHijos.join('\n')}`
+                                `Los siguientes subcomponentes no pueden darse de baja automáticamente:\n${hijosConHijos.join('\n')}`
                             );
                             return;
                             }
