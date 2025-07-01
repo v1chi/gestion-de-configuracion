@@ -13,6 +13,20 @@ export default function MenuUserScreen({ navigation }) {
   const [componentList, setComponentList] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
 
+  /**
+   * Al montar la pantalla, obtiene todos los componentes y los guarda en `componentList`
+   */
+  useEffect(() => {
+    (async () => {
+      const all = await fetchAllComponents();
+      setComponentList(all);
+    })();
+  }, []);
+
+  /**
+   * Solicita al backend los datos de un componente específico por su ID.
+   * Devuelve el objeto del componente si la petición es exitosa.
+   */
   const fetchComponentById = async (id) => {
     const token = await AsyncStorage.getItem('token');
     const response = await axios.get(`${API_URL}/components/${id}`, {
@@ -21,6 +35,10 @@ export default function MenuUserScreen({ navigation }) {
     return response.data;
   };
 
+  /**
+   * Solicita al backend todos los componentes disponibles.
+   * Devuelve un arreglo con los componentes si la petición es exitosa.
+   */
   const fetchAllComponents = async () => {
     const token = await AsyncStorage.getItem('token');
     const response = await axios.get(`${API_URL}/components`, {
@@ -29,6 +47,10 @@ export default function MenuUserScreen({ navigation }) {
     return response.data;
   };
 
+  /**
+   * Filtra los componentes según el texto ingresado en la búsqueda
+   * Si no hay texto, muestra todos los componentes
+   */
   const handleSearch = async (text) => {
     setSearchQuery(text);
     const token = await AsyncStorage.getItem('token');
@@ -47,12 +69,20 @@ export default function MenuUserScreen({ navigation }) {
     }
   };
 
+  /**
+   * Abre la vista de un subcomponente dado su ID.
+   * Almacena el componente actual en `componentHistory` para permitir navegación hacia atrás.
+   */
   const handleGoToSubcomponent = async (subId) => {
     const sub = await fetchComponentById(subId);
     setComponentHistory(prev => [...prev, selectedComponent]);
     setSelectedComponent(sub);
   };
 
+  /**
+   * Permite volver al componente anterior navegando hacia atrás en `componentHistory`.
+   * Si no hay historial previo, cierra el modal actual.
+   */
   const handleGoBackInModal = () => {
     if (componentHistory.length > 0) {
       const previous = componentHistory[componentHistory.length - 1];
@@ -63,20 +93,18 @@ export default function MenuUserScreen({ navigation }) {
     }
   };
 
-  useEffect(() => {
-    (async () => {
-      const all = await fetchAllComponents();
-      setComponentList(all);
-    })();
-  }, []);
-
   const capitalize = (s) => s && s[0].toUpperCase() + s.slice(1);
 
+  /**
+   * Renderiza una fila con la información de un componente:
+   * - Muestra nombre, tipo y estado (capitalizado).
+   * - Incluye botón para ver el detalle del componente (`eye icon`).
+   */
   const renderItem = ({ item }) => (
     <View style={styles.itemContainer}>
-      <Text style={[styles.itemTextNombre, { flex: 2 }]}>{item.name}</Text>
-      <Text style={[styles.itemText, { flex: 1.3 }]}>{item.type}</Text>
-      <Text style={[styles.itemText, { flex: 1.1 }]}>{capitalize(item.status)}</Text>
+      <Text style={[styles.itemTextNombre, { flex: 1.5 }]}>{item.name}</Text>
+      <Text style={[styles.itemText, { flex: 1 }]}>{item.type}</Text>
+      <Text style={[styles.itemText, { flex: 1 }]}>{capitalize(item.status)}</Text>
       <View style={[styles.actionsCell, { flex: 1 }]}>
         <TouchableOpacity
           onPress={async () => {
@@ -92,7 +120,6 @@ export default function MenuUserScreen({ navigation }) {
       </View>
     </View>
   );
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -119,9 +146,9 @@ export default function MenuUserScreen({ navigation }) {
 
       {/* Tabla Header */}
       <View style={styles.tableHeader}>
-        <Text style={[styles.tableHeaderText, { flex: 2 }]}>Nombre</Text>
-        <Text style={[styles.tableHeaderText, { flex: 1.3 }]}>Tipo</Text>
-        <Text style={[styles.tableHeaderText, { flex: 1.1 }]}>Estado</Text>
+        <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Nombre</Text>
+        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Tipo</Text>
+        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Estado</Text>
         <Text style={[styles.tableHeaderText, { flex: 1 }]}>Acciones</Text>
       </View>
 
